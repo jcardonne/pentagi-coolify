@@ -27,7 +27,7 @@ services:
       - DOCKER_GID=998
       - DOCKER_INSIDE=false                   # sandbox containers do NOT get the host socket
       - DOCKER_SOCKET=/var/run/docker.sock
-      - DOCKER_PUBLIC_IP=135.181.222.27
+      - DOCKER_PUBLIC_IP=0.0.0.0            # bind flow-sandbox ports on all host interfaces (hetzner)
       # --- LLM: OpenRouter direct, single model for every agent type ---
       - LLM_SERVER_URL=https://openrouter.ai/api/v1
       - LLM_SERVER_KEY=${OPENROUTER_KEY}
