@@ -1,0 +1,82 @@
+# PentAGI - minimal stack, tuned for Coolify (Docker Compose resource) on robot-amd-1.
+# Provider: OpenRouter via the custom OpenAI-compatible path (baked-in openrouter.provider.yml).
+# Secrets (${...}) are supplied as Coolify env vars, not written here.
+volumes:
+  pentagi-data:
+  pentagi-ssl:
+  pentagi-postgres-data:
+  scraper-ssl:
+
+services:
+  pentagi:
+    image: vxcontrol/pentagi:latest
+    restart: unless-stopped
+    expose:
+      - 8443            # Coolify/Traefik routes the FQDN here; TLS terminated at the edge
+    depends_on:
+      pgvector:
+        condition: service_healthy
+    environment:
+      - SERVER_PORT=8443
+      - SERVER_HOST=0.0.0.0
+      - SERVER_USE_SSL=false                 # Traefik does TLS; container serves plain HTTP
+      - PUBLIC_URL=${PENTAGI_PUBLIC_URL}
+      - CORS_ORIGINS=${PENTAGI_PUBLIC_URL}
+      - COOKIE_SIGNING_SALT=${PENTAGI_COOKIE_SALT}
+      # --- host Docker daemon (agent spawns sandbox containers on it) ---
+      - DOCKER_GID=998
+      - DOCKER_INSIDE=false                   # sandbox containers do NOT get the host socket
+      - DOCKER_SOCKET=/var/run/docker.sock
+      - DOCKER_PUBLIC_IP=135.181.222.27
+      # --- LLM: OpenRouter direct, single model for every agent type ---
+      - LLM_SERVER_URL=https://openrouter.ai/api/v1
+      - LLM_SERVER_KEY=${OPENROUTER_KEY}
+      - LLM_SERVER_MODEL=z-ai/glm-5.3-flash
+      - LLM_SERVER_PROVIDER=
+      - LLM_SERVER_CONFIG_PATH=
+      - LLM_SERVER_PRESERVE_REASONING=true
+      # --- Embeddings: OpenRouter has NO embeddings endpoint. Supply an
+      #     OpenAI-compatible key or smart-memory indexing will error. ---
+      - EMBEDDING_PROVIDER=${EMBEDDING_PROVIDER:-}
+      - EMBEDDING_URL=${EMBEDDING_URL:-}
+      - EMBEDDING_KEY=${EMBEDDING_KEY:-}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL:-}
+      # --- internal services ---
+      - SCRAPER_PRIVATE_URL=https://someuser:somepass@scraper/
+      - DATABASE_URL=postgres://postgres:postgres@pgvector:5432/pentagidb?sslmode=disable
+    volumes:
+      - pentagi-data:/opt/pentagi/data
+      - pentagi-ssl:/opt/pentagi/ssl
+      - /var/run/docker.sock:/var/run/docker.sock
+    user: root:root
+    logging:
+      options:
+        max-size: 50m
+        max-file: "3"
+
+  pgvector:
+    image: vxcontrol/pgvector:latest
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: postgres
+      POSTGRES_PASSWORD: postgres
+      POSTGRES_DB: pentagidb
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+      start_period: 5s
+    volumes:
+      - pentagi-postgres-data:/var/lib/postgresql/data
+
+  scraper:
+    image: vxcontrol/scraper:latest
+    restart: unless-stopped
+    environment:
+      - MAX_CONCURRENT_SESSIONS=10
+      - USERNAME=someuser
+      - PASSWORD=somepass
+    volumes:
+      - scraper-ssl:/usr/src/app/ssl
+    shm_size: 2g
