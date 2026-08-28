@@ -11,15 +11,15 @@ services:
   pentagi:
     image: vxcontrol/pentagi:latest
     restart: unless-stopped
-    expose:
-      - 8443            # Coolify/Traefik routes the FQDN here; TLS terminated at the edge
+    ports:
+      - "8443:8443"     # robot-amd-1 has no reverse proxy; publish directly on the host
     depends_on:
       pgvector:
         condition: service_healthy
     environment:
       - SERVER_PORT=8443
       - SERVER_HOST=0.0.0.0
-      - SERVER_USE_SSL=false                 # Traefik does TLS; container serves plain HTTP
+      - SERVER_USE_SSL=true                  # no edge proxy: PentAGI serves its own (self-signed) TLS
       - PUBLIC_URL=${PENTAGI_PUBLIC_URL}
       - CORS_ORIGINS=${PENTAGI_PUBLIC_URL}
       - COOKIE_SIGNING_SALT=${PENTAGI_COOKIE_SALT}
