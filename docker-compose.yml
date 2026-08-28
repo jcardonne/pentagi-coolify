@@ -11,8 +11,8 @@ services:
   pentagi:
     image: vxcontrol/pentagi:latest
     restart: unless-stopped
-    expose:
-      - 80              # hetzner Traefik forwards to port 80 by default; TLS terminated at the edge
+    ports:
+      - "127.0.0.1:18443:80"   # loopback-only; reach via SSH tunnel, no public exposure
     depends_on:
       pgvector:
         condition: service_healthy
